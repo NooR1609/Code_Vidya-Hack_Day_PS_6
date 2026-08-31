@@ -45,5 +45,18 @@ cd Code_Vidya-Hack_Day_PS_6
 # Install dependencies
 pip install opencv-python numpy
 
+## 🚀 How to Run the Project
+
+Follow these steps to run the vehicle counter on your local machine:
+
+1. **Add the Video Source**
+   Ensure your sample traffic video (e.g., `video.mp4`) is placed in the project root directory[span_0](start_span)[span_0](end_span).
+
+2. **Execute the Script**
+   Open your terminal or command prompt inside the project directory and run[span_1](start_span)[span_1](end_span):
+   ```bash
+   python vehicle.py
+
+
 Member: 
 Noor Ahmad Khan — B.Tech CSE (Lead Developer)
