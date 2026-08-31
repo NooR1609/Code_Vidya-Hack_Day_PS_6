@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisionTraffic AI - Live Vehicle Monitoring & Analytics Dashboard</title>
+  <meta name="description" content="Real-Time Vehicle Detection and Traffic Analytics system with OpenCV computer vision pipeline, dynamic parameter control, and interactive live dashboards.">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              cyan: '#06b6d4',
+              indigo: '#6366f1',
+              dark: '#07090e',
+              surface: '#0d121d',
+              card: '#111827'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Custom Dashboard CSS -->
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <link rel="stylesheet" href="static/css/dashboard.css">
+</head>
+<body class="min-h-screen text-slate-100 antialiased selection:bg-emerald-500 selection:text-white pb-12">
+
+  <!-- Ambient Lighting Effects -->
+  <div class="ambient-glow"></div>
+  <div class="ambient-glow-bottom"></div>
+
+  <!-- Top Navigation & Status Bar -->
+  <header class="relative z-20 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl sticky top-0 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      
+      <!-- Brand & Pipeline Info -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-white/20">
+          <i class="fa-solid fa-car text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              VisionTraffic <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">AI Pro</span>
+            </h1>
+            <span id="status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-400 pulse-beacon"></span>
+              <span id="status-text">Detecting stream...</span>
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium">Real-Time Vehicle Detection & Traffic Analytics System</p>
+        </div>
+      </div>
+
+      <!-- Telemetry Badges & Controls -->
+      <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <!-- FPS Badge -->
+        <div class="glass-badge flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-300">
+          <i class="fa-solid fa-gauge-high text-emerald-400 text-[11px]"></i>
+          <span id="fps-badge">-- FPS</span>
+        </div>
+
+        <!-- Resolution Badge -->
+        <div class="glass-badge flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-300">
+          <i class="fa-solid fa-expand text-cyan-400 text-[11px]"></i>
+          <span id="res-badge">1280×720</span>
+        </div>
+
+        <!-- Latency Badge -->
+        <div class="glass-badge flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-300">
+          <i class="fa-solid fa-satellite-dish text-amber-400 text-[11px]"></i>
+          <span id="latency-badge">-- ms</span>
+        </div>
+
+        <!-- Mode Switcher -->
+        <button id="mode-switcher" class="glass-btn px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer" title="Toggle Backend vs Standalone Mode">
+          Mode: Auto
+        </button>
+
+        <!-- System Clock -->
+        <div class="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-white/5 text-xs font-mono text-slate-400">
+          <i class="fa-regular fa-clock text-slate-400"></i>
+          <span id="system-time">00:00:00 UTC</span>
+        </div>
+
+        <!-- Quick Info Modal Button -->
+        <button onclick="document.getElementById('info-modal').classList.remove('hidden')" class="glass-btn w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white" title="Pipeline Info">
+          <i class="fa-solid fa-circle-info text-xs"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 mt-6 space-y-6">
+
+    <!-- Top Live Metrics Cards Grid (4-Column) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Card 1: Total Cumulative Count -->
+      <div id="counter-card" class="glass-panel glass-panel-glow-emerald p-4 lg:p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Vehicles Counted</span>
+          <span class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-calculator text-xs"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <div id="total-counter-val" class="text-3xl lg:text-4xl font-extrabold font-mono text-white tracking-tight">0</div>
+          <span class="text-xs text-emerald-400 font-semibold font-mono flex items-center gap-0.5">
+            <i class="fa-solid fa-arrow-trend-up text-[10px]"></i> Live
+          </span>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+          <span>Crossing Line: <strong class="text-slate-200">Y=550</strong></span>
+          <span class="text-emerald-400 font-medium">MOG2 Morph Filter</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Traffic Flow Rate -->
+      <div class="glass-panel glass-panel-glow-cyan p-4 lg:p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Traffic Flow Rate</span>
+          <span class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <i class="fa-solid fa-bolt text-xs"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <div id="vpm-val" class="text-3xl lg:text-4xl font-extrabold font-mono text-cyan-400 tracking-tight">0</div>
+          <span class="text-xs text-slate-400 font-mono">Vehicles / min</span>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+          <span>Projected:</span>
+          <strong id="vph-val" class="text-cyan-300 font-mono">~0 /hr</strong>
+        </div>
+      </div>
+
+      <!-- Card 3: Traffic Density Status -->
+      <div class="glass-panel glass-panel-glow-amber p-4 lg:p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Traffic Density</span>
+          <span class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <i class="fa-solid fa-traffic-light text-xs"></i>
+          </span>
+        </div>
+        <div class="flex items-center justify-between my-1">
+          <div id="density-text" class="text-xl font-bold text-slate-100">Low</div>
+          <span id="density-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+            Normal
+          </span>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-white/5">
+          <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="density-bar" class="bg-emerald-500 h-full w-[15%] transition-all duration-300 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Detection Sensitivity Index -->
+      <div class="glass-panel p-4 lg:p-5 relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Sensitivity Index</span>
+          <span class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <i class="fa-solid fa-sliders text-xs"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <div id="sensitivity-val" class="text-2xl font-bold font-mono text-indigo-300">80×80px</div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+          <span id="sensitivity-area">(6,400 px² threshold)</span>
+          <span class="text-indigo-400 font-mono">Offset: ±6px</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Center Stage: Video Player & Parameter Controls (2-Column Grid) -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- Main Video Player Stage (Left 8-Columns) -->
+      <div class="lg:col-span-8 space-y-4">
+        
+        <!-- Video Screen Container -->
+        <div id="video-player-container" class="video-container relative group">
+          
+          <!-- Backend MJPEG Stream Image -->
+          <img id="stream-img" src="/video_feed" alt="VisionTraffic Live Stream" class="hidden w-full h-full object-contain">
+          
+          <!-- Standalone Video & Canvas Overlay -->
+          <video id="standalone-video" class="w-full h-full object-contain" muted playsinline></video>
+          <canvas id="canvas-overlay" class="canvas-overlay"></canvas>
+
+          <!-- Top-Left Status Overlay Tag -->
+          <div class="absolute top-3 left-3 z-10 flex items-center gap-2">
+            <div class="glass-badge px-2.5 py-1 rounded-md text-[11px] font-mono text-white flex items-center gap-1.5 bg-black/60">
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+              <span>LIVE CAM-01</span>
+            </div>
+          </div>
+
+          <!-- Top-Right Visual Overlay Toggles Floating Bar -->
+          <div class="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-black/70 backdrop-blur-md p-1.5 rounded-lg border border-white/10 opacity-90 hover:opacity-100 transition-opacity">
+            
+            <!-- Toggle Bounding Boxes -->
+            <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-white/10 text-xs font-medium text-slate-300 select-none" title="Toggle Green Bounding Boxes">
+              <input type="checkbox" id="toggle-boxes" checked class="accent-emerald-500 rounded">
+              <span class="text-emerald-400 font-mono text-[11px]">Boxes</span>
+            </label>
+
+            <!-- Toggle Centroids -->
+            <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-white/10 text-xs font-medium text-slate-300 select-none" title="Toggle Centroid Tracking Dots">
+              <input type="checkbox" id="toggle-centers" checked class="accent-red-500 rounded">
+              <span class="text-red-400 font-mono text-[11px]">Centroids</span>
+            </label>
+
+            <!-- Toggle Counting Line -->
+            <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-white/10 text-xs font-medium text-slate-300 select-none" title="Toggle Reference Line">
+              <input type="checkbox" id="toggle-line" checked class="accent-amber-500 rounded">
+              <span class="text-amber-400 font-mono text-[11px]">Line</span>
+            </label>
+
+            <!-- Toggle Mask View -->
+            <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-white/10 text-xs font-medium text-slate-300 select-none" title="Toggle Subtractor Mask Picture-in-Picture">
+              <input type="checkbox" id="toggle-mask" class="accent-cyan-500 rounded">
+              <span class="text-cyan-400 font-mono text-[11px]">Mask PiP</span>
+            </label>
+          </div>
+
+          <!-- Interactive Line Picker Banner (Shown when user clicks "Pick Line on Screen") -->
+          <div id="line-picker-banner" class="hidden absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-amber-500/90 text-slate-950 px-4 py-1.5 rounded-full font-bold text-xs shadow-xl animate-bounce">
+            <i class="fa-solid fa-crosshairs mr-1"></i> Click anywhere on the video frame to set Reference Line Y
+          </div>
+
+          <!-- Picture-in-Picture MOG2 Mask Preview -->
+          <div id="pip-container" class="pip-window hidden">
+            <div class="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-cyan-400 z-10 border border-cyan-500/30">
+              MOG2 Dilated Mask
+            </div>
+            <img id="pip-img" class="w-full h-full object-contain hidden" alt="MOG2 Mask Stream">
+            <canvas id="pip-canvas" class="w-full h-full object-contain"></canvas>
+          </div>
+
+        </div>
+
+        <!-- Video Controls & Action Bar -->
+        <div class="glass-panel p-3 flex flex-wrap items-center justify-between gap-3">
+          
+          <!-- Playback Controls -->
+          <div class="flex items-center gap-2">
+            <button id="btn-play-pause" class="glass-btn w-9 h-9 rounded-lg flex items-center justify-center text-slate-200" title="Play / Pause">
+              <i class="fa-solid fa-pause"></i>
+            </button>
+            <button id="btn-restart" class="glass-btn w-9 h-9 rounded-lg flex items-center justify-center text-slate-200" title="Restart Stream">
+              <i class="fa-solid fa-rotate-left"></i>
+            </button>
+            
+            <div class="h-6 w-px bg-white/10 mx-1"></div>
+
+            <!-- Playback Speed -->
+            <div class="flex items-center gap-1.5 text-xs text-slate-400">
+              <span>Speed:</span>
+              <select id="select-speed" class="glass-input text-xs px-2 py-1 cursor-pointer bg-slate-900 border border-slate-700 rounded">
+                <option value="0.5">0.5×</option>
+                <option value="1.0" selected>1.0×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2.0">2.0×</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Utility & Snapshot Controls -->
+          <div class="flex items-center gap-2">
+            <!-- Audio Chime Toggle -->
+            <button id="btn-audio-toggle" class="glass-btn w-9 h-9 rounded-lg flex items-center justify-center text-emerald-400" title="Crossing Audio Alerts: Enabled">
+              <i class="fa-solid fa-volume-high"></i>
+            </button>
+
+            <!-- Snapshot Capture -->
+            <button id="btn-snapshot" class="glass-btn glass-btn-emerald px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5" title="Capture Snapshot Frame">
+              <i class="fa-solid fa-camera"></i>
+              <span>Snapshot</span>
+            </button>
+
+            <!-- Fullscreen -->
+            <button id="btn-fullscreen" class="glass-btn w-9 h-9 rounded-lg flex items-center justify-center text-slate-200" title="Toggle Fullscreen">
+              <i class="fa-solid fa-expand"></i>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Parameter Control Panel (Right 4-Columns) -->
+      <div class="lg:col-span-4 space-y-4">
+        
+        <div class="glass-panel p-5 space-y-5">
+          
+          <!-- Panel Header -->
+          <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-emerald-400"></i>
+              <h2 class="text-sm font-bold text-white uppercase tracking-wider">Pipeline Parameters</h2>
+            </div>
+            <span id="sync-status-badge" class="text-xs text-emerald-400 font-mono">✓ Active</span>
+          </div>
+
+          <!-- Preset Selector -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-slate-300 flex items-center justify-between">
+              <span>Configuration Profile</span>
+              <span class="text-[10px] text-slate-500 font-mono">Presets</span>
+            </label>
+            <select id="preset-selector" class="w-full glass-input px-3 py-2 text-xs text-slate-200 cursor-pointer bg-slate-900/90 border border-slate-700">
+              <option value="highway" selected>Highway Fast Flow (Default 550px / 80×80)</option>
+              <option value="urban">Urban Dense Traffic (500px / 60×60)</option>
+              <option value="night">Night Vision / Low Light (550px / 70×70 / High Thresh)</option>
+              <option value="sensitive">High Sensitivity (Small vehicles 45×45)</option>
+            </select>
+          </div>
+
+          <!-- Parameter 1: Counting Line Y-Position -->
+          <div class="space-y-2 pt-2 border-t border-white/5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-ruler-horizontal"></i>
+                <span>Counting Line Y-Position</span>
+              </label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-line-y" min="50" max="1000" value="550" class="glass-input w-16 px-2 py-0.5 text-xs text-right font-mono text-amber-300">
+                <span class="text-xs text-slate-500 font-mono">px</span>
+              </div>
+            </div>
+            <input type="range" id="slider-line-y" min="50" max="1000" value="550" class="slider-amber">
+            
+            <!-- Quick Line Presets & Visual Picker -->
+            <div class="flex items-center justify-between gap-1 pt-1">
+              <div class="flex items-center gap-1">
+                <button class="btn-quick-line text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono" data-y="250">250</button>
+                <button class="btn-quick-line text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono" data-y="400">400</button>
+                <button class="btn-quick-line text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-semibold" data-y="550">550</button>
+                <button class="btn-quick-line text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono" data-y="650">650</button>
+              </div>
+              <button id="btn-pick-line" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-amber-500/20 hover:text-amber-300 border border-white/10 text-slate-300 flex items-center gap-1 transition-colors" title="Click on video screen to set Y position">
+                <i class="fa-solid fa-crosshairs text-[10px]"></i> Pick
+              </button>
+            </div>
+          </div>
+
+          <!-- Parameter 2: Min Vehicle Width -->
+          <div class="space-y-2 pt-2 border-t border-white/5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-left-right"></i>
+                <span>Min Vehicle Width (min_width_react)</span>
+              </label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-min-width" min="10" max="300" value="80" class="glass-input w-16 px-2 py-0.5 text-xs text-right font-mono text-emerald-300">
+                <span class="text-xs text-slate-500 font-mono">px</span>
+              </div>
+            </div>
+            <input type="range" id="slider-min-width" min="10" max="300" value="80">
+          </div>
+
+          <!-- Parameter 3: Min Vehicle Height -->
+          <div class="space-y-2 pt-2 border-t border-white/5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-up-down"></i>
+                <span>Min Vehicle Height (min_hieght_react)</span>
+              </label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-min-height" min="10" max="300" value="80" class="glass-input w-16 px-2 py-0.5 text-xs text-right font-mono text-emerald-300">
+                <span class="text-xs text-slate-500 font-mono">px</span>
+              </div>
+            </div>
+            <input type="range" id="slider-min-height" min="10" max="300" value="80">
+          </div>
+
+          <!-- Parameter 4: Line Offset / Tolerance Buffer -->
+          <div class="space-y-2 pt-2 border-t border-white/5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-cyan-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                <span>Line Tolerance Buffer (offset)</span>
+              </label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-offset" min="1" max="30" value="6" class="glass-input w-16 px-2 py-0.5 text-xs text-right font-mono text-cyan-300">
+                <span class="text-xs text-slate-500 font-mono">px</span>
+              </div>
+            </div>
+            <input type="range" id="slider-offset" min="1" max="30" value="6" class="slider-cyan">
+          </div>
+
+          <!-- Background Subtractor Advanced Settings -->
+          <details class="group pt-2 border-t border-white/5">
+            <summary class="text-xs font-semibold text-slate-400 cursor-pointer flex items-center justify-between select-none py-1 hover:text-slate-200">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-gear text-indigo-400"></i> MOG2 Background Subtractor
+              </span>
+              <i class="fa-solid fa-chevron-down text-[10px] group-open:rotate-180 transition-transform"></i>
+            </summary>
+            <div class="mt-3 space-y-3 pl-2 border-l border-white/10 text-xs">
+              <div class="space-y-1">
+                <div class="flex justify-between text-slate-400">
+                  <span>History Frames:</span>
+                  <span id="val-history" class="font-mono text-indigo-300">500</span>
+                </div>
+                <input type="range" id="slider-history" min="100" max="1000" step="50" value="500">
+              </div>
+              <div class="space-y-1">
+                <div class="flex justify-between text-slate-400">
+                  <span>Variance Threshold (varThreshold):</span>
+                  <span id="val-var-threshold" class="font-mono text-indigo-300">16</span>
+                </div>
+                <input type="range" id="slider-var-threshold" min="4" max="64" step="2" value="16">
+              </div>
+              <div class="flex items-center justify-between text-slate-300 pt-1">
+                <span>Shadow Suppression:</span>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-shadows" checked>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </details>
+
+          <!-- Action Buttons -->
+          <div class="pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2">
+            <button id="btn-reset-defaults" class="glass-btn flex-1 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-arrow-rotate-right text-[11px]"></i> Defaults
+            </button>
+            <button id="btn-reset-counter" class="glass-btn flex-1 py-2 rounded-lg text-xs font-medium text-rose-400 hover:bg-rose-500/20 border-rose-500/30 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-trash text-[11px]"></i> Clear Count
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Lower Section: Analytics & Historical Charts + Activity Logs (2-Column Grid) -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Traffic Charts (Left 6-Columns) -->
+      <div class="lg:col-span-6 space-y-4">
+        
+        <!-- Traffic Over Time Chart -->
+        <div class="glass-panel p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-chart-area text-emerald-400"></i>
+              <h3 class="text-sm font-bold text-white">Traffic Volume Over Time</h3>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono">Live rolling intervals</span>
+          </div>
+          <div class="h-60 w-full">
+            <canvas id="chart-traffic-time"></canvas>
+          </div>
+        </div>
+
+        <!-- Vehicle Classification Distribution -->
+        <div class="glass-panel p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-cyan-400"></i>
+              <h3 class="text-sm font-bold text-white">Vehicle Classification Breakdown</h3>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono">Aspect & area categorization</span>
+          </div>
+          <div class="h-48 w-full">
+            <canvas id="chart-vehicle-class"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Activity Crossing Log Table (Right 6-Columns) -->
+      <div class="lg:col-span-6 space-y-4">
+        <div class="glass-panel p-5 flex flex-col h-[520px]">
+          
+          <!-- Table Header & Filter Bar -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-amber-400"></i>
+              <h3 class="text-sm font-bold text-white">Crossing Activity Log</h3>
+              <span id="log-count-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400">0 events</span>
+            </div>
+            
+            <!-- Export Options -->
+            <div class="flex items-center gap-1.5">
+              <button id="btn-export-csv" class="glass-btn px-2.5 py-1 rounded text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 flex items-center gap-1">
+                <i class="fa-solid fa-file-csv"></i> CSV
+              </button>
+              <button id="btn-export-json" class="glass-btn px-2.5 py-1 rounded text-xs font-medium text-cyan-400 hover:bg-cyan-500/20 flex items-center gap-1">
+                <i class="fa-solid fa-file-code"></i> JSON
+              </button>
+              <button id="btn-clear-logs" class="glass-btn px-2 py-1 rounded text-xs text-slate-400 hover:text-rose-400" title="Clear logs">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Search and Category Filters -->
+          <div class="py-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="relative flex-1 min-w-[160px]">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+              <input type="text" id="log-search-input" placeholder="Search event ID, position..." class="glass-input w-full pl-8 pr-3 py-1.5 text-xs">
+            </div>
+            <div class="flex items-center gap-1 overflow-x-auto text-[11px]">
+              <button class="filter-pill px-2.5 py-1 rounded-md font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/50" data-class="all">All</button>
+              <button class="filter-pill px-2.5 py-1 rounded-md font-medium text-slate-400 border border-slate-800 hover:bg-slate-800" data-class="Sedan">Cars</button>
+              <button class="filter-pill px-2.5 py-1 rounded-md font-medium text-slate-400 border border-slate-800 hover:bg-slate-800" data-class="SUV">SUVs</button>
+              <button class="filter-pill px-2.5 py-1 rounded-md font-medium text-slate-400 border border-slate-800 hover:bg-slate-800" data-class="Truck">Trucks</button>
+            </div>
+          </div>
+
+          <!-- Scrollable Table Body -->
+          <div class="flex-1 overflow-y-auto mt-1 rounded-lg border border-white/5 bg-slate-950/40">
+            <table class="w-full text-left log-table border-collapse">
+              <thead>
+                <tr class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-white/10">
+                  <th class="px-3 py-2">ID</th>
+                  <th class="px-3 py-2">Vehicle Type</th>
+                  <th class="px-3 py-2">Crossing Pos</th>
+                  <th class="px-3 py-2">Dimensions</th>
+                  <th class="px-3 py-2">Time</th>
+                  <th class="px-3 py-2 text-right">Conf</th>
+                </tr>
+              </thead>
+              <tbody id="activity-table-body">
+                <tr>
+                  <td colspan="6" class="px-4 py-8 text-center text-slate-500 text-sm">
+                    Waiting for vehicle crossing events...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Snapshot Preview Modal -->
+  <div id="snapshot-modal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="glass-panel max-w-2xl w-full p-6 space-y-4 shadow-2xl border-white/20">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-camera text-emerald-400"></i> Video Frame Snapshot
+        </h3>
+        <button id="btn-close-snapshot" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="rounded-lg overflow-hidden border border-white/10 bg-black">
+        <img id="snapshot-img" class="w-full h-auto object-contain max-h-[380px]" alt="Snapshot Preview">
+      </div>
+
+      <div id="snapshot-meta" class="p-3 rounded-lg bg-slate-900/80 border border-white/5"></div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="document.getElementById('snapshot-modal').classList.add('hidden')" class="glass-btn px-4 py-2 rounded-lg text-xs font-medium text-slate-300">
+          Close
+        </button>
+        <button id="btn-download-snapshot" class="glass-btn glass-btn-emerald px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i> Download PNG
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline Info Modal -->
+  <div id="info-modal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="glass-panel max-w-xl w-full p-6 space-y-4 shadow-2xl border-white/20">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-circle-nodes text-cyan-400"></i> OpenCV Computer Vision Architecture
+        </h3>
+        <button onclick="document.getElementById('info-modal').classList.add('hidden')" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed font-sans">
+        <p>This system operates on the background subtraction and morphological contour analysis pipeline from your OpenCV vehicle counting script:</p>
+        
+        <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2 font-mono text-[11px]">
+          <div><strong class="text-emerald-400">1. Preprocessing:</strong> BGR &rarr; Grayscale &rarr; Gaussian Blur (3×3, &sigma;=5)</div>
+          <div><strong class="text-cyan-400">2. Background Subtractor:</strong> MOG2 (History: 500, VarThreshold: 16)</div>
+          <div><strong class="text-amber-400">3. Morphology:</strong> Dilate (5×5) &rarr; Close (5×5 Ellipse, 2 iterations)</div>
+          <div><strong class="text-indigo-400">4. Contour Analysis:</strong> Bounding Rect &ge; min_width × min_height</div>
+          <div><strong class="text-rose-400">5. Centroid Crossing:</strong> Trigger when <code class="text-yellow-300">Y_line - offset &lt; cy &lt; Y_line + offset</code></div>
+        </div>
+
+        <p class="text-slate-400">The web frontend allows dynamic real-time adjustment of detection thresholds, line positions, and live event recording with automated CSV/JSON exports.</p>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="document.getElementById('info-modal').classList.add('hidden')" class="glass-btn px-4 py-2 rounded-lg text-xs font-semibold text-slate-200">
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript Controller -->
+  <script src="/static/js/dashboard.js"></script>
+  <script src="static/js/dashboard.js"></script>
+</body>
+</html>
